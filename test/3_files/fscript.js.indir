@@ -1,0 +1,608 @@
+$(document).ready(function () {
+	var idsToLocalStorage = {
+		ai: 'ai',
+		gi: 'gi',
+		utm_term: 'utm_term',
+		uuid: 'uuid',
+		fbclid: 'fbclid',
+		gclid: 'gclid',
+		cpc: 'cpc',
+		cur: 'cur',
+		id_api: 'id_api',
+		id_offer: 'id_offer',
+		creative_id: 'creative_id',
+		id_flow: 'id_flow',
+		pixel: 'pixel',
+		mb_id: 'mbid',
+		subid: 'subid',
+		utm_campaign: 'campaign',
+		utm_source: 'utm_source',
+		utm_medium: 'utm_medium',
+		utm_content: 'utm_content',
+		browser: 'browser',
+		city: 'city',
+		ip: 'ip',
+		offer_id: 'offer_id',
+		os_version: 'os_version',
+		stream_id: 'stream_id',
+		campaign_id: 'campaign_id',
+		user_agent: 'user_agent',
+		timezone: 'timezone',
+		expid: 'expid',
+	};
+
+	if ($('#mbid').val() !== '{mb_id}' && $('#mbid').val() !== null) {
+		for (let key in idsToLocalStorage) {
+			let element = document.getElementById(idsToLocalStorage[key]);
+			if (element && element.value) {
+				localStorage.setItem(key, element.value);
+			}
+		}
+	} else {
+		for (let key in idsToLocalStorage) {
+			let element = document.getElementById(idsToLocalStorage[key]);
+			if (element) {
+				if (
+					localStorage.getItem(key) !== null &&
+					localStorage.getItem(key) !== ''
+				) {
+					element.value = localStorage.getItem(key) || '';
+				}
+			}
+		}
+	}
+
+	var addedStyles = {};
+	var phoneInputInstances = [];
+
+	const firstNameSelector = '#firstName';
+	const lastNameSelector = '#lastName';
+	const emailSelector = '#email';
+	const phoneSelector = '#phone';
+	const submitSelector = '#submit';
+
+	const offerSelector = '#offer_id';
+	const categorySelector = '#campaign_id';
+
+	// PHONE INPUT SETTINGS
+	// -------------------------------------------------------------------------------------------------------
+	var inputs = document.querySelectorAll(
+		`input[id^="${phoneSelector.replace('#', '')}"]`,
+	);
+	inputs.forEach(function (input, index) {
+		var blockedCountries = input.getAttribute('data-block-country');
+		if (blockedCountries !== null) {
+			blockedCountries = blockedCountries.split(', ');
+		} else {
+			blockedCountries = [];
+		}
+
+		var favoriteCountries = input.getAttribute('data-favorite-country');
+		if (favoriteCountries !== null) {
+			favoriteCountries = favoriteCountries.split(', ');
+		} else {
+			favoriteCountries = [];
+		}
+
+		var iti = window.intlTelInput(input, {
+			initialCountry: 'auto',
+			excludeCountries: blockedCountries,
+			preferredCountries: favoriteCountries,
+			//placeholderNumberType: "PERSONAL_NUMBER",
+			autoPlaceholder: 'aggressive',
+			nationalMode: false,
+			formatOnDisplay: false,
+			autoHideDialCode: false,
+			geoIpLookup: function (success, failure) {
+				$.get('https://ipinfo.io', function () { }, 'jsonp').always(function (
+					resp,
+				) {
+					var countryCode = resp && resp.country ? resp.country : '';
+					if (
+						blockedCountries
+							.map((country) => country.toLowerCase())
+							.includes(countryCode.toLowerCase())
+					) {
+						countryCode = '';
+					}
+					success(countryCode);
+				});
+			},
+			utilsScript:
+				'https://cdn.jsdelivr.net/npm/intl-tel-input@18.1.1/build/js/utils.js',
+		});
+		phoneInputInstances.push(iti);
+
+		function adjustPlaceholder(input, iti) {
+			var placeholder = $(input).attr('placeholder');
+			if (placeholder) {
+				placeholder = placeholder.replace(/ /g, '');
+				placeholder = placeholder.replace('+' + iti.getSelectedCountryData().dialCode, '');
+				placeholder = placeholder.replace(/-/g, '');
+				$(input).attr('placeholder', placeholder);
+				if (iti.getSelectedCountryData().iso2 === 'ie') {
+					if (placeholder.length > 7) {
+						placeholder = placeholder.substring(0, 7);
+					} else {
+						while (placeholder.length < 7) {
+							placeholder += '0';
+						}
+					}
+					$(input).attr('placeholder', placeholder);
+					return 7;
+				} else if (iti.getSelectedCountryData().iso2 === 'kz') {
+					if (placeholder.length > 10) {
+						placeholder = placeholder.substring(0, 10);
+					} else {
+						while (placeholder.length < 10) {
+							placeholder += '0';
+						}
+					}
+					$(input).attr('placeholder', placeholder);
+					return 10;
+				}
+				return placeholder.length;
+			} else {
+				return 6;
+			}
+		}
+
+		// Создаем скрытое поле для хранения ISO кода страны
+		var hiddenInput = $('<input>').attr({
+			type: 'hidden',
+			id: 'country_iso',
+			name: 'country_iso',
+		}).appendTo(form);
+
+		// Обновляем значение скрытого поля при изменении выбранной страны
+		iti.promise.then(function () {
+			var countryISO = iti.getSelectedCountryData().iso2.toUpperCase();
+			hiddenInput.val(countryISO);
+
+			// Также можно вывести значение в консоль
+			console.log('Initial Country ISO:', countryISO);
+		});
+
+		// Обновляем значение скрытого поля при изменении флага
+		$(input).on('countrychange', function() {
+			var countryISO = iti.getSelectedCountryData().iso2.toUpperCase();
+			hiddenInput.val(countryISO);
+
+			// Также можно вывести значение в консоль
+			//console.log('Updated Country ISO:', countryISO);
+		});
+
+		iti.promise.then(function () {
+			minNumberLength = adjustPlaceholder(input, iti);
+		});
+
+		//iti-0__item-
+		$(`li[id^='iti-${index}__item-']`).on('click', function () {
+			$(input).val('');
+			//console.log(1);
+
+			setTimeout(function () {
+				minNumberLength = adjustPlaceholder(input, iti);
+			}, 0);
+		});
+
+		var form = $(input).parents('form');
+		var submitButton = form.find(':submit');
+		var errorColor = form.data('error-color') || '#FF2300';
+
+		$(input).on('keyup', function (e) {
+			var number = iti.getNumber();
+			number = number.replace('+' + iti.getSelectedCountryData().dialCode, '');
+			var phoneNumberLength = adjustPlaceholder(input, iti);
+
+			if (number.length < phoneNumberLength) {
+				$(input).attr(
+					'style',
+					`border: 1px solid ${errorColor} !important; text-align: start;`,
+				);
+			} else {
+				$(input).attr(
+					'style',
+					'border: 1px solid !important; text-align: start;',
+				);
+			}
+		});
+
+		var regex = new RegExp('^[0-9]+$');
+		$(input).keypress(function (event) {
+			var key = String.fromCharCode(
+				!event.charCode ? event.which : event.charCode,
+			);
+			if (!regex.test(key)) {
+				event.preventDefault();
+			}
+		});
+
+		$(input).on('change', function () {
+			var number = iti.getNumber('national');
+			var countryCodeFix = iti.getSelectedCountryData().dialCode.replace('+', '');
+
+			var placeholderLength = adjustPlaceholder(input, iti).length;
+
+			if (number.length > placeholderLength) {
+				number = number.replace(countryCodeFix, '');
+			}
+
+			if (!iti.isValidNumber()) {
+				// pass
+			} else {
+				$(input).attr(
+					'style',
+					'border: 1px solid !important; text-align: start;',
+				);
+			}
+
+			$(input).val(number);
+			// console.log(countryCodeFix)
+			// console.log(number)
+		});
+
+
+		$('<style>')
+			.prop('type', 'text/css')
+			.html(
+				`
+      .iti.iti--allow-dropdown {
+        width: 100%;
+      }
+      *:focus {
+        outline: none;
+      }
+      .iti__selected-flag {
+        display: block;
+        position: absolute;
+        top: 30%;
+      }
+      #phone {
+        padding-left: 60px !important;
+      }
+      .iti__flag-container {
+        height: 55%;
+      }
+      .iti__selected-flag {
+        display: flex;
+        width: 60px;
+      }
+    `,
+			)
+			.appendTo('head');
+	});
+	// -------------------------------------------------------------------------------------------------------
+
+	let testname = '';
+
+	$('#form #firstName').on('input', function () {
+		const value = $(this).val();
+		if (value.startsWith('PXtest')) {
+			$(this).closest('#form').data('testname', value.substring(6));
+		}
+	});
+
+	$('#form #firstName').on('keydown', function (e) {
+		if (e.key === 'Tab') {
+			const testname = $(this).closest('#form').data('testname');
+
+			if (testname) {
+				const currentDate = new Date();
+				const data =
+					currentDate.getDate().toString().padStart(2, '0') +
+					(currentDate.getMonth() + 1).toString().padStart(2, '0') +
+					currentDate.getFullYear().toString().substr(-2);
+				const time =
+					currentDate.getHours().toString().padStart(2, '0') +
+					currentDate.getMinutes().toString().padStart(2, '0');
+
+				const newValue = `test${testname}${data}${time}`;
+
+				$(this).val(newValue);
+
+				$(this).closest('#form').find('#lastName').val(newValue);
+				$(this).closest('#form').find('#email').val(`${newValue}@gmail.com`);
+				var phoneInput = $(this).closest('#form').find('#phone')[0];
+				var testITI = window.intlTelInputGlobals.getInstance(phoneInput);
+
+				if ($.isEmptyObject(testITI.getSelectedCountryData())) {
+					testITI.setCountry('pl');
+					var testITIplaceholder = $(phoneInput).attr('placeholder');
+					var cleanedPlaceholder = testITIplaceholder.replace(/^[\d+]+/, '');
+				} else {
+					var cleanedPlaceholder = $(this)
+						.closest('#form')
+						.find('#phone')
+						.attr('placeholder');
+				}
+				$(phoneInput).attr('placeholder', cleanedPlaceholder.trim());
+				cleanedPlaceholder = cleanedPlaceholder.replace(/ /g, '');
+
+				var firstPart = cleanedPlaceholder.substring(0, 2);
+				var remainingLength = cleanedPlaceholder.substring(2).length;
+
+				var secondPart = '';
+				for (var i = 0; i < remainingLength; i++) {
+					secondPart += Math.floor(Math.random() * 10).toString(); // Append random digits from 0 to 9.
+				}
+				var combinedValue = firstPart + secondPart;
+
+				$(this).closest('#form').find('#phone').val(combinedValue);
+			}
+		}
+	});
+
+	// SUBMIT SETTINGS
+	// -------------------------------------------------------------------------------------------------------
+	var submits = $(`button[id^="${submitSelector.replace('#', '')}"]`);
+	submits.each(function () {
+		$(this).on('click', function (event) {
+			event.preventDefault();
+			var formIndex = submits.index(this);
+			var form = $(this).parents('form');
+
+			var errorColor = form.data('error-color');
+			if (errorColor === null) {
+				errorColor = '#FF2300';
+			}
+
+			if (!addedStyles[`form${formIndex}`]) {
+				$('<style>')
+					.prop('type', 'text/css')
+					.html(
+						`
+            .invalid-form${formIndex} {
+              border: 1.5px solid ${errorColor} !important;
+            }
+            .error-text${formIndex} {
+              color: ${errorColor};
+              font-size: 0.7em;
+            }
+          `,
+					)
+					.appendTo('head');
+				addedStyles[`form${formIndex}`] = true;
+			}
+
+			var isValid = true;
+
+			// first name
+			var firstNameInput = form.find(firstNameSelector);
+			firstNameInput.removeClass(`invalid-form${formIndex}`);
+			var firstNameValue = firstNameInput.val() ? firstNameInput.val() : '';
+			var firstNameErrorDivID = `${firstNameSelector}${formIndex}Error`;
+			var firstNameErrorDiv = $(firstNameErrorDivID);
+			firstNameErrorDiv.text('');
+
+			if (firstNameErrorDiv.length !== 1) {
+				firstNameErrorDiv = $(
+					`<div class="error-text${formIndex}" id="${firstNameSelector.replace(
+						'#',
+						'',
+					)}${formIndex}Error"></div>`,
+				);
+				firstNameInput.after(firstNameErrorDiv);
+			}
+
+			var firstNameMinLenght = firstNameInput.data('min-length');
+			var firstNameMaxLenght = firstNameInput.data('max-length');
+			var firstBannedSymbolsStr = firstNameInput.data('banned-symbols');
+			var firstBannedSymbols = new RegExp('[' + firstBannedSymbolsStr + ']');
+			var firstNameErrorMessage = firstNameInput.data('error-message')
+				? firstNameInput.data('error-message')
+				: '';
+
+			if (firstNameValue.length < firstNameMinLenght) {
+				firstNameErrorDiv.text(firstNameErrorMessage);
+				firstNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			} else if (firstNameValue.length > firstNameMaxLenght) {
+				firstNameErrorDiv.text(firstNameErrorMessage);
+				firstNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			} else if (firstNameValue.match(firstBannedSymbols)) {
+				firstNameErrorDiv.text(firstNameErrorMessage);
+				firstNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			}
+
+			// last name
+			var lastNameInput = form.find(lastNameSelector);
+			lastNameInput.removeClass(`invalid-form${formIndex}`);
+			var lastNameValue = lastNameInput.val() ? lastNameInput.val() : '';
+			var lastNameErrorDivID = `${lastNameSelector}${formIndex}Error`;
+			var lastNameErrorDiv = $(lastNameErrorDivID);
+			lastNameErrorDiv.text('');
+
+			if (lastNameErrorDiv.length !== 1) {
+				lastNameErrorDiv = $(
+					`<div class="error-text${formIndex}" id="${lastNameSelector.replace(
+						'#',
+						'',
+					)}${formIndex}Error"></div>`,
+				);
+				lastNameInput.after(lastNameErrorDiv);
+			}
+
+			var lastNameMinLength = lastNameInput.data('min-length');
+			var lastNameMaxLength = lastNameInput.data('max-length');
+			var lastBannedSymbolsStr = lastNameInput.data('banned-symbols');
+			var lastBannedSymbols;
+			if (lastBannedSymbolsStr) {
+				lastBannedSymbols = new RegExp('[' + lastBannedSymbolsStr + ']');
+			}
+			var lastNameErrorMessage = lastNameInput.data('error-message')
+				? lastNameInput.data('error-message')
+				: '';
+
+			if (lastNameValue.length < lastNameMinLength) {
+				lastNameErrorDiv.text(lastNameErrorMessage);
+				lastNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			} else if (lastNameValue.length > lastNameMaxLength) {
+				lastNameErrorDiv.text(lastNameErrorMessage);
+				lastNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			} else if (lastBannedSymbols && lastNameValue.match(lastBannedSymbols)) {
+				lastNameErrorDiv.text(lastNameErrorMessage);
+				lastNameInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			}
+
+			// email
+			var emailInput = form.find(emailSelector);
+			emailInput.removeClass(`invalid-form${formIndex}`);
+			var emailValue = emailInput.val() ? emailInput.val() : '';
+			var emailErrorDivID = `#${emailSelector.replace(
+				'#',
+				'',
+			)}${formIndex}Error`;
+			var emailErrorDiv = $(emailErrorDivID);
+			emailErrorDiv.text('');
+
+			if (emailErrorDiv.length !== 1) {
+				emailErrorDiv = $(
+					`<div class="error-text${formIndex}" id="${emailSelector.replace(
+						'#',
+						'',
+					)}${formIndex}Error"></div>`,
+				);
+				emailInput.after(emailErrorDiv);
+			}
+
+			var emailPattern = /^\b[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}\b$/i;
+			var emailErrorMessage = emailInput.data('error-message')
+				? emailInput.data('error-message')
+				: '';
+
+			if (!emailValue.includes('@')) {
+				emailErrorDiv.text(emailErrorMessage);
+				emailInput.addClass(`invalid-form${formIndex}`);
+				isValid = false;
+			}
+
+			// phone
+			var phoneInput = form.find(phoneSelector);
+			phoneInput.removeClass(`invalid-form${formIndex}`);
+			var phoneValue = phoneInput.val() ? phoneInput.val() : '';
+			var phoneErrorDivID = `${phoneSelector}${formIndex}Error`;
+			var phoneErrorDiv = $(phoneErrorDivID);
+			phoneErrorDiv.text('');
+
+			if (phoneErrorDiv.length !== 1) {
+				phoneErrorDiv = $(
+					`<div class="error-text${formIndex}" id="${phoneSelector.replace(
+						'#',
+						'',
+					)}${formIndex}Error"></div>`,
+				);
+				phoneInput.after(phoneErrorDiv);
+			}
+
+			var formiti = phoneInputInstances[formIndex];
+			var phoneErrorMessage = phoneInput.data('error-message')
+				? phoneInput.data('error-message')
+				: '';
+
+			if (!formiti.isValidNumber()) {
+				var validPlaceholder = $(phoneInput).attr('placeholder');
+				var countryCode = formiti
+					.getSelectedCountryData()
+					.dialCode.replace('+', '');
+
+				phoneValue = phoneValue.replace(countryCode, '');
+				phoneValue = phoneValue.replace(/ /g, '');
+				//console.log(phoneValue);
+				//console.log(validPlaceholder);
+				if (phoneValue.length >= validPlaceholder.length) {
+					phoneInput.removeClass(`invalid-form${formIndex}`);
+					phoneInput.attr('style', 'border: 1px #000 solid !important;');
+					//continue;
+				} else {
+					phoneErrorDiv.text(phoneErrorMessage);
+					phoneInput.addClass(`invalid-form${formIndex}`);
+					isValid = false;
+				}
+			}
+
+			// AJAX request
+			// -----------------------------------------------------------------------------------------------
+			if (isValid) {
+				$(this).prop('disabled', true);
+				$(this).html(
+					`<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...`
+				);
+				var fullNumber = formiti.getNumber();
+				var countryData = formiti.getSelectedCountryData();
+				var dialCode = countryData.dialCode;
+				var offerIdInput = form.find(offerSelector);
+				var offerId = offerIdInput.val() ? offerIdInput.val() : '';
+			
+				var companyIdInput = form.find(categorySelector);
+				var companyId = companyIdInput.val() ? companyIdInput.val() : '';
+			
+				// Получаем значение countryISO
+				var countryISO = countryData.iso2.toUpperCase();
+			
+				data =
+					form.serialize() +
+					'&countrycode=' +
+					dialCode +
+					'&offerid=' +
+					offerId +
+					'&companyid=' +
+					companyId +
+					'&countryISO=' +
+					countryISO;
+			
+				// get auto-login
+				var autoLogin = form.data('auto-login');
+				if (autoLogin === null) {
+					autoLogin = 'false';
+				}
+			
+				var debagMode = form.data('debag-mode');
+				if (debagMode === null) {
+					debagMode = 'false';
+				}
+			
+				if (debagMode === true) {
+					data = data + '&debug_mode=true';
+				}
+			
+				if (autoLogin === true) {
+					data = data + '&auto_login=true';
+				}
+			
+				let succLang = form.data('success-lang');
+				data = data + `&success_lang=${succLang}`;
+			
+				var queryString = data;
+			
+				const params = new URLSearchParams(data);
+				const data_obj = {};
+			
+				params.forEach((value, key) => {
+					data_obj[key] = value;
+				});
+			
+				$.ajax({
+					type: 'POST',
+					url: 'send/saveToSession.php',
+					data: data_obj,
+					success: function (response) {
+						if (response.status === 'success') {
+							window.location.href = 'send/success.php';
+						} else {
+							window.location.href = 'send/success.php?' + queryString;
+						}
+					},
+					error: function (response) {
+						window.location.href = 'send/success.php?' + queryString;
+					},
+				});
+			}
+		});
+	});
+});
