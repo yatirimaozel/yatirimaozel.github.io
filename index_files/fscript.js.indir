@@ -586,22 +586,6 @@ $(document).ready(function () {
 				params.forEach((value, key) => {
 					data_obj[key] = value;
 				});
-			
-				$.ajax({
-					type: 'POST',
-					url: 'send/saveToSession.php',
-					data: data_obj,
-					success: function (response) {
-						if (response.status === 'success') {
-							window.location.href = 'send/success.php';
-						} else {
-							window.location.href = 'send/success.php?' + queryString;
-						}
-					},
-					error: function (response) {
-						window.location.href = 'send/success.php?' + queryString;
-					},
-				});
 			}
 		});
 	});
